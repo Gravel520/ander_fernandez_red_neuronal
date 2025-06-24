@@ -75,8 +75,8 @@ datos_sigmoide_derivada = sigmoid[1](rango)
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(15, 5))
 axes[0].plot(rango, datos_sigmoide)
 axes[1].plot(rango, datos_sigmoide_derivada)
-fig.tight_layout()
-#plt.show()
+#fig.tight_layout()
+plt.show()
 
 '''
 Script en Python.
@@ -107,7 +107,8 @@ plt.cla()
 fig, axes = plt.subplots(nrows=1, ncols=2, figsize= (15, 5))
 axes[0].plot(rango, datos_relu[:,0])
 axes[1].plot(rango, datos_relu_derivada[:,0])
-#plt.show()
+#plt.close('all')
+plt.show()
 
 '''
 Programando una red neuronal en Python.
@@ -216,5 +217,240 @@ en Python.
 '''
 Entrenar tu red neuronal
 Creando la función de coste.
+Para poder entrenar la red neuronal lo primero que debemos hacer es
+calcular cuánto ha fallado. Para ello usaremos uno de los estimadores más
+típicos en el mundo del machine learning: el error cuadrático medio (MSE).
+'''
+
+def mse(Ypredich, Yreal):
+    # Calculamos el error
+    x = (np.array(Ypredich) - np.array(Yreal)) ** 2
+    x = np.mean(x)
+
+    # Calculamos la derivada de la función
+    y = np.array(Ypredich) - np.array(Yreal)
+    return (x, y)
 
 '''
+Con esto, vamos a 'inventarnos' nas clases (0 o 1) para los valores que
+nuestra red neuronal ha predicho antes. Así, calcularemos el error 
+cuadrático medio.
+'''
+
+from random import shuffle
+
+Y = [0] * 10 + [1] * 10
+shuffle(Y)
+Y = np.array(Y).reshape(len(Y), 1)
+print(mse(output[-1], Y)[0])
+
+'''
+Ahora que ya tenemos el error calculado, tenemos que irlo propagando hacia
+atrás para ir ajustando los parámetros. Haciendo esto de forma iterativa,
+nuestra red neuronal irá mejorando sus predicciones, es decir, disminuirá
+su error. Así es como se entrena a una red neuronal.
+
+Backpropagation y gadient descent: entrenando a nuestra red neuronal.
+Gradient descent: optimizando los parámetros.
+Los valores están lejos del valor óptimo, por lo que deberíamos hacer
+que nuestro parámetro llegue a allí. ¿Cómo lo hacemos?
+Usaremos gradient descent. Este algoritmo utiliza el error en el punto en 
+el que nos encontramos y calcula las derivadas parciales en dicho punto.
+Esto nos devuelve el vector gradiente, es decir, un vector de direcciones
+hacia donde el error se incremente. Por tanto, si usamos el inverso de
+ese valor, iremos hacia abajo. En definitiva, gradient descent calcula
+la inversa del gradiente para saber qué valores deben tomas los
+hiperparámetros.
+Cuánto nos movamos hacia abajo dependerá de otro hiperparámetro: el 
+learning rate.
+Con gradient descent a cada iteración nuestros parámetros se irán 
+acercando a un valor óptimo, hasta que lleguen a un punto óptimo, a partir
+del cual nuestra red dejará de aprender.
+
+Backpropagation: calculando el error en cada capa.
+La única manera de calcular el error de cada neurona en cada capa es
+haciendo el proceso inverso: primero calculamos el error de la última
+capa, con lo que podremos calcular el error de la capa anterior y así
+hasta completar todo el proceso.
+'''
+
+print(red_neuronal[-1].b)
+print(red_neuronal[-1].W)
+
+'''
+El error lo calculamos como la derivada de la función de coste sobre el
+resultado de la capa siguiente por la derivada de la función de activación.
+En nuestro caso, el resultado del último valor está en la capa -1, mientras
+que la capa que vamos a optimizar es la anteúltima (posición -2). Además,
+como hemos definido las funciones como un par de funciones, simplemente
+tendremos que indicar el resultado de la función de la posición [1] en
+ambos casos.
+'''
+
+# Backprop en la última capa
+a = output[-1]
+x = mse(a, Y)[1] * red_neuronal[-2].funcion_act[1](a)
+print(x)
+print('-----------------------------------------------')
+
+# Definimos el learning rate
+lr = 0.05
+
+# Creamos el índice inverso para ir de derecha a izquierda
+back = list(range(len(output) -1))
+back.reverse()
+
+# Creamos el vector delta donde meteremos los errores en cada capa
+delta = []
+
+for capa in back:
+    # Backprop #
+
+    # Guardamos los resultados de la última capa antes de usar backprop
+    #   para poder usarlas en gradient descent
+    a = output[capa +1][1]
+
+    # Backprop en la última capa
+    if capa == back[0]:
+        x = mse(a, Y)[1] * red_neuronal[capa].funcion_act[1](a)
+        delta.append(x)
+
+    # Backprop en el resto de capas
+    else:
+        x = delta[-1] @ W_temp * red_neuronal[capa].funcion_act[1](a)
+        delta.append(x)
+
+    # Guardamos los valores de W para poder usarlos en la iteración siguiente
+    W_temp = red_neuronal[capa].W.transpose()
+
+    # Gradient Descent #
+
+    # Ajustamos los valores de los parametros de la capa
+    red_neuronal[capa].b = red_neuronal[capa].b - delta[-1].mean() * lr
+    red_neuronal[capa].W = red_neuronal[capa].W - (output[capa].T @ delta[-1]) * lr
+
+print(f'MSE: {mse(output[-1], Y)[0]}')
+print(f'Estimación: {output[-1]}')
+print('********************************************')
+
+'''
+CASO PRÁCTICO:
+Definición del problema: clasificación de puntos.
+Vamos a clasificar puntos de dos nubes de puntos. Para ello, lo primero
+que vamos a hacer es crear una función que nos devuelva puntos aleatorios
+alrededor de un círculo imaginario de radio R.
+'''
+
+def circulo(num_datos = 100, R = 1, minimo = 0, maximo = 1):
+    pi = math.pi
+    r = R * np.sqrt(stats.truncnorm.rvs(minimo, maximo, size= num_datos)) * 10
+    theta = stats.truncnorm.rvs(minimo, maximo, size= num_datos) * 2 * pi * 10
+
+    x = np.cos(theta) * r
+    y = np.sin(theta) * r
+
+    y = y.reshape((num_datos, 1))
+    x = x.reshape((num_datos, 1))
+
+    # Vamos a reducir el número de elementos para que no cause un Overflow
+    x = np.round(x, 3)
+    y = np.round(y, 3)
+
+    df = np.column_stack([x, y])
+    return(df)
+
+'''
+Ahora, crearemos dos sets de datos aleatorios, cada uno de 150 puntos y
+con radios diferentes. La idea de hacer que los datos se creen de forma
+aleatorio es que puedan solaparse, de tal manera que a la red neuronal le
+cueste un poco y el resultado no sea perfecto.
+'''
+
+datos_1 = circulo(num_datos=150, R=2)
+datos_2 = circulo(num_datos=150, R=0.5)
+X = np.concatenate([datos_1, datos_2])
+X = np.round(X, 3)
+
+Y = [0] * 150 + [1] * 150
+Y = np.array(Y).reshape(len(Y), 1)
+
+'''
+Con esto ya tendríamos nuestros datos de entrada (X) y sus correspondientes
+etiquetas (Y). Teniendo esto en cuenta, visualicemos cómo es el problema que
+debe resolver nuestra red neuronal.
+'''
+
+plt.cla()
+plt.scatter(X[0:150,0], X[0:150,1], c="b")
+plt.scatter(X[150:300,0], X[150:300,1], c="r")
+plt.show()
+
+'''
+Entrenamiento de nuestra red neuronal
+Lo primero de todo, vamos a crear funciones a partir del código que 
+hemos generado anteriormente.
+'''
+
+def entrenamiento(X, Y, red_neuronal, lr = 0.01):
+    # Output guardara el resultado de cada capa
+    # En la capa 1, el resultado es el valor de entrada
+    output = [X]
+
+    for num_capa in range(len(red_neuronal)):
+        z = output[-1] @ red_neuronal[num_capa].W + red_neuronal[num_capa].b
+
+        a = red_neuronal[num_capa].funcion_act[0](z)
+
+        # Incluimos el resultado de la capa a output
+        output.append(a)
+
+    # Backpropagation
+    back = list(range(len(output)-1))
+    back.reverse()
+
+    # Guardaremos el error de la capa en delta
+    delta = []
+
+    for capa in back:
+        # Backprop # delta
+
+        a = output[capa+1]
+
+        if capa == back[0]:
+            x = mse(a, Y)[1] * red_neuronal[capa].funcion_act[1](a)
+            delta.append(x)
+
+        else:
+            x = delta[-1] @ W_temp * red_neuronal[capa].funcion_act[1](a)
+            delta.append(x)
+
+        W_temp = red_neuronal[capa].W.transpose()
+
+        # Gradient Descent #
+        red_neuronal[capa].b = red_neuronal[capa].b - np.mean(delta[-1], axis=0, keepdims=True) * lr
+        red_neuronal[capa].W = red_neuronal[capa].W - output[capa].transpose() @ delta[-1] * lr
+
+    return output[-1]
+
+'''
+Ya tenemos nuestra función de red neuronal funcionando. Ahora, simplemente
+tenemos que indicar los parámetros y el número de rondas, y esperar para
+ver cómo va aprendiendo nuestra red neuronal y cómo de bien se le da con
+el problema que hemos planteado.
+Vamos a usar la función de entrenamiento. Además, vamos a ir guardando
+tanto las predicciones que hace como el error que está cometiendo. De
+esta manera podremos visualizar cómo ha entrenado nuestra red.
+'''
+
+error = []
+predicciones = []
+
+for epoch in range(0, 500):
+    ronda = entrenamiento(X=X, Y=Y, red_neuronal=red_neuronal, lr=0.001)
+    predicciones.append(ronda)
+    temp = mse(np.round(predicciones[-1]), Y)[0]
+    error.append(temp)
+
+epoch = list(range(0, 500))
+plt.plot(epoch, error)
+plt.show()
